@@ -158,9 +158,9 @@ def process_payload(item_id):
                     # Assuming the item type is "Episode" if it's not "Movie"
                     series_name = item_details["Items"][0].get("SeriesName", "Unknown")
                     season_epi = (
-                        f"{item_details['Items'][0].get('IndexNumber', 'Unknown'):02}"
+                        f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
                     )
-                    season_num = f"{item_details['Items'][0].get('ParentIndexNumber', 'Unknown'):02}"
+                    season_num = f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
                     logging.warning(
                         f"Timed out waiting for {series_name} S{season_num}E{season_epi} metadata"
                     )
@@ -172,10 +172,10 @@ def process_payload(item_id):
             else:
                 series_name = item_details["Items"][0].get("SeriesName", "Unknown")
                 season_epi = (
-                    f"{item_details['Items'][0].get('IndexNumber', 'Unknown'):02}"
+                    f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
                 )
                 season_num = (
-                    f"{item_details['Items'][0].get('ParentIndexNumber', 'Unknown'):02}"
+                    f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
                 )
                 logging.info(
                     f"Waiting 60s for {series_name} S{season_num}E{season_epi} metadata"
@@ -194,12 +194,7 @@ def process_payload(item_id):
         item_details["Items"][0].get("PremiereDate", "0000-00-00T").split("T")[0]
     )
     overview = item_details["Items"][0].get("Overview", "Unknown")
-    series_name = item_details["Items"][0].get("SeriesName", "Unknown")
-    series_id = item_details["Items"][0].get("SeriesId", "Unknown")
-    season_id = item_details["Items"][0].get("SeasonId", "Unknown")
-    season_epi = f"{item_details['Items'][0].get('IndexNumber', 'Unknown'):02}"
-    season_num = f"{item_details['Items'][0].get('ParentIndexNumber', 'Unknown'):02}"
-    season_name = f"Season {season_num}"
+
 
     if item_type == "Movie":
         if not item_already_notified(item_name, release_year):
@@ -243,6 +238,12 @@ def process_payload(item_id):
             return "Notification Was Already Sent"
 
     if item_type == "Episode":
+        series_name = item_details["Items"][0].get("SeriesName", "Unknown")
+        series_id = item_details["Items"][0].get("SeriesId", "Unknown")
+        season_id = item_details["Items"][0].get("SeasonId", "Unknown")
+        season_epi = f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
+        season_num = f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
+        season_name = f"Season {season_num}"
         series_name_cleaned = series_name.replace(f" ({release_year})", "").strip()
         season_details = get_item_details(season_id)
         season_date_created = (

@@ -516,7 +516,7 @@ def emby_webhook():
             # logging.error(f"webhook: {payload}")
             user_name = payload.get("User") and payload.get("User").get("Name", "Unknown") or "Unknown"
             device_name = payload.get("Session") and payload.get("Session").get("DeviceName", "Unknown")  or payload.get("DeviceInfo") and payload.get("DeviceInfo").get("Name", "Unknown") or "未知设备"
-            client_name = payload.get("Session") and payload.get("Session").get("Client", "Unknown")  or payload.get("DeviceInfo") and payload.get("DeviceInfo").get("AppName", "Unknown") or "未知客户的"
+            client_name = payload.get("Session") and payload.get("Session").get("Client", "Unknown")  or payload.get("DeviceInfo") and payload.get("DeviceInfo").get("AppName", "Unknown") or "未知客户端"
             title = payload.get("Title", "Unknown")
             notification_message = (
                 f"*操作用户*: {user_name}\n*客户端名*: {client_name}\n*设备名称*: {device_name}\n*通知内容*: {title}"

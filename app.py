@@ -58,16 +58,20 @@ def send_telegram_notification(text, photo_id):
 
     try:
         data = {"chat_id": TELEGRAM_CHAT_ID, "caption": text, "parse_mode": "Markdown"}
+        proxies = {
+        'http': '127.0.0.1:10809',
+        'https': '127.0.0.1:10809'
+        }
 
         if photo_id:
             image_response = requests.get(base_photo_url)
             image = ("photo.jpg", image_response.content, "image/jpeg")
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-            response = requests.post(url, data=data, files={"photo": image})
+            response = requests.post(url, data=data, files={"photo": image}, proxies=proxies)
         else:
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             data["text"] = text
-            response = requests.post(url, data=data)
+            response = requests.post(url, data=data, proxies=proxies)
 
         return response
 
@@ -158,9 +162,9 @@ def process_payload(item_id):
                     # Assuming the item type is "Episode" if it's not "Movie"
                     series_name = item_details["Items"][0].get("SeriesName", "Unknown")
                     season_epi = (
-                        f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
+                        f"{item_details['Items'][0].get('IndexNumber', 1):02}"
                     )
-                    season_num = f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
+                    season_num = f"{item_details['Items'][0].get('ParentIndexNumber', 1):02}"
                     logging.warning(
                         f"Timed out waiting for {series_name} S{season_num}E{season_epi} metadata"
                     )
@@ -172,10 +176,10 @@ def process_payload(item_id):
             else:
                 series_name = item_details["Items"][0].get("SeriesName", "Unknown")
                 season_epi = (
-                    f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
+                    f"{item_details['Items'][0].get('IndexNumber', 1):02}"
                 )
                 season_num = (
-                    f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
+                    f"{item_details['Items'][0].get('ParentIndexNumber', 1):02}"
                 )
                 logging.info(
                     f"Waiting 60s for {series_name} S{season_num}E{season_epi} metadata"
@@ -198,7 +202,7 @@ def process_payload(item_id):
 
     if item_type == "Movie":
         if not item_already_notified(item_name, release_year):
-            runtime_ticks = item_details["Items"][0].get("RunTimeTicks", "Unknown")
+            runtime_ticks = item_details["Items"][0].get("RunTimeTicks", 0)
             runtime_sec = runtime_ticks // 10_000_000
             hours, remainder = divmod(runtime_sec, 3600)
             minutes, seconds = divmod(remainder, 60)
@@ -238,12 +242,14 @@ def process_payload(item_id):
             return "Notification Was Already Sent"
 
     if item_type == "Episode":
+
         series_name = item_details["Items"][0].get("SeriesName", "Unknown")
         series_id = item_details["Items"][0].get("SeriesId", "Unknown")
         season_id = item_details["Items"][0].get("SeasonId", "Unknown")
-        season_epi = f"{item_details['Items'][0].get('IndexNumber', '1'):02}"
-        season_num = f"{item_details['Items'][0].get('ParentIndexNumber', '1'):02}"
-        season_name = f"Season {season_num}"
+        season_epi = f"{item_details['Items'][0].get('IndexNumber', 1):02}"
+        season_num = f"{item_details['Items'][0].get('ParentIndexNumber', 1):02}"
+        season_name = f"Season {season_num}"   
+
         series_name_cleaned = series_name.replace(f" ({release_year})", "").strip()
         season_details = get_item_details(season_id)
         season_date_created = (
@@ -331,6 +337,134 @@ def process_payload(item_id):
         return "Item type not supported."
 
 
+def process_playback(item_details,title):
+
+
+    # Check if 'Overview' is empty every 60s, with a timeout of 5 minutes
+
+    item_type = item_details.get("Type", "Unknown")
+    item_name = item_details.get("Name", "Unknown")
+    release_year = item_details.get("ProductionYear", "Unknown")
+    premiere_date = (
+        item_details.get("PremiereDate", "0000-00-00T").split("T")[0]
+    )
+    overview = item_details.get("Overview", "Unknown")
+
+
+    if item_type == "Movie":
+        # if not item_already_notified(item_name, release_year):
+            runtime_ticks = item_details.get("RunTimeTicks", 0)
+            runtime_sec = runtime_ticks // 10_000_000
+            hours, remainder = divmod(runtime_sec, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            runtime = "{:02}:{:02}:{:02}".format(hours, minutes, seconds)
+            movie_name_cleaned = item_name.replace(f" ({release_year})", "").strip()
+            trailer_url = "Unknown"
+
+            if (
+                "RemoteTrailers" in item_details
+                and item_details["RemoteTrailers"]
+            ):
+                trailer_url = item_details["RemoteTrailers"][0].get(
+                    "Url", "Unknown"
+                )
+
+            notification_message = (
+                f"*🍿{title}🍿*\n\n*{movie_name_cleaned}* *({release_year})*\n\n{overview}\n\n"
+                f"Runtime\n{runtime}"
+            )
+
+            if trailer_url != "Unknown":
+                notification_message += (
+                    f"\n\n[🎥]({trailer_url})[Trailer]({trailer_url})"
+                )
+
+            mark_item_as_notified(item_name, release_year)
+
+            send_telegram_notification(notification_message, item_details.get('Id',None))
+
+            logging.info(
+                f"(Movie) {item_name} {release_year} notification was sent to Telegram!."
+            )
+            return "Movie notification was sent to Telegram"
+
+        # else:
+        #     logging.info(f"(Movie) {item_name} Notification Was Already Sent")
+        #     return "Notification Was Already Sent"
+
+    if item_type == "Episode":
+
+        series_name = item_details.get("SeriesName", "Unknown")
+        series_id = item_details.get("SeriesId", "Unknown")
+        season_id = item_details.get("SeasonId", "Unknown")
+        season_epi = f"{item_details.get('IndexNumber', 1):02}"
+        season_num = f"{item_details.get('ParentIndexNumber', 1):02}"
+        season_name = f"Season {season_num}"   
+
+        series_name_cleaned = series_name.replace(f" ({release_year})", "").strip()
+        # season_details = get_item_details(season_id)
+        # season_date_created = (
+        #     season_details["Items"][0].get("DateCreated", "0000-00-00T").split("T")[0]
+        # )
+        # season_overview = season_details["Items"][0].get("Overview", "Unknown")
+        # series_details = get_item_details(series_id)
+        # series_overview = series_details["Items"][0].get("Overview", "Unknown")
+        episode_stored = f"S{season_num}E{season_epi}"
+
+
+        # overview_to_use = (
+        #     series_overview if season_overview == "Unknown" else season_overview
+        # )
+
+        # notification_message = (
+        #     f"*{title}*\n\n*{series_name_cleaned}* *({release_year})*\n\n"
+        #     f"*Season* *{season_num}*\n\n{overview_to_use}\n\n"
+        # )
+
+        # mark_item_as_notified(series_name_cleaned, season_name)
+
+        # send_telegram_notification(notification_message, season_id)
+
+        # logging.info(
+        #     f"(Season) {series_name_cleaned} "
+        #     f"Season {season_num} notification sent to Telegram!"
+        # )
+  
+
+
+        notification_message = (
+            f"*{title}*\n\n*Release Date*: {premiere_date}\n\n*Series*: {series_name_cleaned} *S*"
+            f"{season_num}*E*{season_epi}\n*Episode Title*: {item_name}\n\n{overview}\n\n"
+        )
+
+        # mark_item_as_notified(series_name_cleaned, episode_stored)
+
+        response = send_telegram_notification(notification_message, season_id)
+
+        if response:
+            logging.info(
+                f"(Episode) {series_name_cleaned} "
+                f"S{season_num}E{season_epi} notification sent to Telegram!"
+            )
+            return "Notification sent to Telegram"
+        else:
+            mark_item_as_notified(series_name_cleaned, episode_stored)
+
+            send_telegram_notification(notification_message, series_id)
+
+            logging.warning(
+                f"(Episode) {series_name} season image does not exist, "
+                f"falling back to series image"
+            )
+            logging.info(
+                f"(Episode) {series_name_cleaned} "
+                f"S{season_num}E{season_epi} notification sent to Telegram!"
+            )
+            return "Notification sent to Telegram (fallback)"
+    else:
+        logging.error(f"Item type {item_type} not supported")
+        return "Item type not supported."
+
 @app.route("/webhook", methods=["POST"])
 def emby_webhook():
     try:
@@ -354,6 +488,7 @@ def emby_webhook():
         return f"Error: {str(e)}", 500
 
     # Check if payload is sample webhook
+    # logging.error(f"webhook: {payload}")
     if payload["Title"] == "Test Notification":
         server_name = payload["Server"]["Name"]
         version = payload["Server"]["Version"]
@@ -364,12 +499,30 @@ def emby_webhook():
         return "OK"
 
     try:
-        item_id = payload["Item"]["Id"]
-
-        # Start a new thread to process the payload with a 1-minute delay
-        thread = threading.Thread(target=process_payload, args=(item_id,))
-        thread.start()
-        return "OK"
+        if payload["Event"] == 'library.new':
+            item_id = payload["Item"]["Id"]
+            # Start a new thread to process the payload with a 1-minute delay
+            thread = threading.Thread(target=process_payload, args=(item_id,))
+            thread.start()
+            return "OK"
+        elif payload["Event"].startswith('playback'):
+            item = payload["Item"]
+            title = payload.get("Title", "Unknown")
+            # Start a new thread to process the payload with a 1-minute delay
+            thread = threading.Thread(target=process_playback, args=(item,title,))
+            thread.start()
+            return "OK"
+        else:
+            # logging.error(f"webhook: {payload}")
+            user_name = payload.get("User") and payload.get("User").get("Name", "Unknown") or "Unknown"
+            device_name = payload.get("Session") and payload.get("Session").get("DeviceName", "Unknown")  or payload.get("DeviceInfo") and payload.get("DeviceInfo").get("Name", "Unknown") or "未知设备"
+            client_name = payload.get("Session") and payload.get("Session").get("Client", "Unknown")  or payload.get("DeviceInfo") and payload.get("DeviceInfo").get("AppName", "Unknown") or "未知客户的"
+            title = payload.get("Title", "Unknown")
+            notification_message = (
+                f"*操作用户*: {user_name}\n*客户端名*: {client_name}\n*设备名称*: {device_name}\n*通知内容*: {title}"
+            )
+            send_telegram_notification(notification_message, None)
+            return "OK"
 
     except KeyError as key_err:
         logging.error(f"Key error occurred: {key_err}")

@@ -58,20 +58,16 @@ def send_telegram_notification(text, photo_id):
 
     try:
         data = {"chat_id": TELEGRAM_CHAT_ID, "caption": text, "parse_mode": "Markdown"}
-        proxies = {
-        'http': '127.0.0.1:10809',
-        'https': '127.0.0.1:10809'
-        }
 
         if photo_id:
             image_response = requests.get(base_photo_url)
             image = ("photo.jpg", image_response.content, "image/jpeg")
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-            response = requests.post(url, data=data, files={"photo": image}, proxies=proxies)
+            response = requests.post(url, data=data, files={"photo": image})
         else:
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             data["text"] = text
-            response = requests.post(url, data=data, proxies=proxies)
+            response = requests.post(url, data=data)
 
         return response
 
